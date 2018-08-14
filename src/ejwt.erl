@@ -8,7 +8,7 @@
 -export([pre_parse_jwt/1]).
 -export([parse_jwt/2]).
 -export([parse_jwt_iss_sub/2]).
--export([jwt/3, jwt/4]).
+-export([jwt/3, jwt/4, jwt/5]).
 -export([jwt_hs256_iss_sub/4]).
 
 jiffy_decode_safe(Bin) ->
@@ -95,10 +95,12 @@ parse_jwt_iss_sub(Token, Key) ->
         ClaimSetJterm ->
             {ej:get({<<"iss">>}, ClaimSetJterm), ej:get({<<"sub">>}, ClaimSetJterm)}
     end.
-
 jwt(Alg, ClaimSetJterm, Key) ->
+    jwt(Alg, [], ClaimSetJterm, Key).
+
+jwt(Alg, Headers, ClaimSetJterm, Key) ->
   ClaimSet = base64url:encode(jiffy:encode(ClaimSetJterm)),
-  Header = base64url:encode(jiffy:encode(jwt_header(Alg))),
+  Header = base64url:encode(jiffy:encode(jwt_header(Alg, Headers))),
   Payload = <<Header/binary, ".", ClaimSet/binary>>,
   case jwt_sign(Alg, Payload, Key) of
     alg_not_supported ->
@@ -108,9 +110,9 @@ jwt(Alg, ClaimSetJterm, Key) ->
   end.
 
 
-jwt(Alg, ClaimSetJterm, ExpirationSeconds, Key) ->
+jwt(Alg, Headers, ClaimSetJterm, ExpirationSeconds, Key) ->
     ClaimSet = base64url:encode(jiffy:encode(jwt_add_exp(ClaimSetJterm, ExpirationSeconds))),
-    Header = base64url:encode(jiffy:encode(jwt_header(Alg))),
+    Header = base64url:encode(jiffy:encode(jwt_header(Alg, Headers))),
     Payload = <<Header/binary, ".", ClaimSet/binary>>,
     case jwt_sign(Alg, Payload, Key) of
         alg_not_supported ->
@@ -145,11 +147,11 @@ jwt_sign(<<"HS256">>, Payload, Key) ->
 jwt_sign(_, _, _) ->
     alg_not_supported.
 
-jwt_header(Alg) ->
+jwt_header(Alg, Headers) ->
     {[
         {<<"alg">>, Alg},
         {<<"typ">>, <<"JWT">>}
-    ]}.
+    ] ++ Headers}.
 
 epoch() ->
     calendar:datetime_to_gregorian_seconds(calendar:now_to_universal_time(os:timestamp())) - 719528 * 24 * 3600.
